@@ -1,0 +1,7 @@
+{
+  "name": "Reconhecimento de Pose Corporal",
+  "description": "Aplicação de reconhecimento de pose corporal em tempo real usando MediaPipe e React. Deteta poses de Elevate, T-Stop, Wave e Curl.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
