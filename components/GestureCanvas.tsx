@@ -276,8 +276,10 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           // Calculate score based on gesture type
           const score = calculateScore(detectedGesture);
           
-          // Use actual detection confidence from MediaPipe results
-          const confidence = results.landmarks[0].reduce((sum, lm) => sum + (lm.visibility || 0), 0) / results.landmarks[0].length;
+          // Calculate actual detection confidence from MediaPipe visibility scores
+          const landmarkCount = results.landmarks[0].length;
+          const visibilitySum = results.landmarks[0].reduce((sum, lm) => sum + (lm.visibility || 0), 0);
+          const confidence = visibilitySum / landmarkCount;
           
           onGestureDetected({
             landmarks: results.landmarks.map(lm => 
