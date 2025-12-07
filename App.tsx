@@ -4,29 +4,49 @@ import { DetectionResult, Gesture } from './types';
 import { Activity, Settings, Sliders, User, Download, Code, ChevronDown, ChevronUp, RefreshCcw } from 'lucide-react';
 import { generatePythonCode } from './services/gestureService';
 
+/**
+ * Main application component for gesture detection system.
+ * Manages the camera feed, gesture detection, UI state, and user interactions.
+ */
 const App: React.FC = () => {
+  // Gesture state management
   const [currentGesture, setCurrentGesture] = useState<Gesture>(Gesture.NONE);
   const [hoveredGesture, setHoveredGesture] = useState<Gesture | null>(null);
   const gestureCanvasRef = useRef<GestureCanvasRef>(null);
   
-  // MediaPipe Sensitivity Settings
+  // MediaPipe confidence thresholds for pose detection
   const [detectionConfidence, setDetectionConfidence] = useState<number>(0.5);
   const [presenceConfidence, setPresenceConfidence] = useState<number>(0.5);
   const [trackingConfidence, setTrackingConfidence] = useState<number>(0.5);
+  
+  // UI visibility toggles
   const [showSettings, setShowSettings] = useState(false);
   const [showDownloads, setShowDownloads] = useState(false);
 
-  // Novo: pontuação total acumulada e pontuação atual
+  // Score tracking: accumulates points as gestures are performed
   const [totalScore, setTotalScore] = useState<number>(0);
   const [currentScore, setCurrentScore] = useState<number>(0);
 
+  /**
+   * Callback handler when a gesture is detected by the GestureCanvas component.
+   * Updates the current gesture state and accumulates score.
+   * 
+   * @param result - Detection result containing gesture type and score
+   */
   const handleGestureDetected = (result: DetectionResult) => {
     setCurrentGesture(result.gesture);
     setCurrentScore(result.score);
-    // Adicionar pontuação ao total
+    // Accumulate score to running total
     setTotalScore(prev => prev + result.score);
   };
 
+  /**
+   * Maps each gesture type to its corresponding color theme for UI consistency.
+   * Returns Tailwind CSS classes for text and border colors.
+   * 
+   * @param gesture - The gesture type to get colors for
+   * @returns CSS classes string for text and border styling
+   */
   const getGestureColor = (gesture: Gesture) => {
     switch (gesture) {
       case Gesture.ELEVATE_LEFT: 
@@ -40,20 +60,23 @@ const App: React.FC = () => {
         return 'text-yellow-400 border-yellow-400';
       case Gesture.ROTATION: 
         return 'text-cyan-400 border-cyan-400';
-      case Gesture.SQUAT:
-        return 'text-orange-400 border-orange-400';
-      // Novos gestos
       case Gesture.MARCH_LEFT:
       case Gesture.MARCH_RIGHT:
         return 'text-green-400 border-green-400';
-      case Gesture.STEP_FORWARD:
-        return 'text-blue-400 border-blue-400';
-      default: return 'text-slate-400 border-slate-600';
+      default: 
+        return 'text-slate-400 border-slate-600';
     }
   };
 
+  // Memoize the current gesture color to avoid recalculation on every render
   const currentGestureColor = useMemo(() => getGestureColor(currentGesture), [currentGesture]);
 
+  /**
+   * Handles downloading Python detection code for a specific gesture.
+   * Generates the code, creates a downloadable file, and triggers browser download.
+   * 
+   * @param gesture - The gesture to generate Python code for
+   */
   const handleDownloadCode = (gesture: Gesture) => {
     const code = generatePythonCode(gesture);
     const blob = new Blob([code], { type: 'text/x-python' });
@@ -67,18 +90,22 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * Manually resets the tracking system and clears all scores.
+   * Useful when the detection gets stuck or user wants to start fresh.
+   */
   const handleManualReset = () => {
     if (gestureCanvasRef.current) {
       gestureCanvasRef.current.resetTracking();
       setCurrentGesture(Gesture.NONE);
-      setTotalScore(0); // Resetar pontuação
+      setTotalScore(0);
       setCurrentScore(0);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
-      {/* Header */}
+      {/* Header: Contains branding, model info, and control buttons */}
       <header className="p-6 border-b border-slate-800 bg-slate-950/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -96,6 +123,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+             {/* Manual reset button to restart tracking */}
              <button 
                onClick={handleManualReset}
                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -103,6 +131,7 @@ const App: React.FC = () => {
              >
                <RefreshCcw className="w-5 h-5" />
              </button>
+             {/* Settings toggle button */}
              <button 
                onClick={() => setShowSettings(!showSettings)}
                className={`p-2 rounded-lg transition-colors ${showSettings ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
@@ -110,6 +139,7 @@ const App: React.FC = () => {
              >
                <Settings className="w-5 h-5" />
              </button>
+             {/* Camera active indicator */}
              <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-400">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                 <span>Câmara Ativa</span>
@@ -121,7 +151,7 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-grow flex flex-col items-center justify-start p-4 sm:p-8 gap-8">
         
-        {/* Status Bar */}
+        {/* Status Bar: Shows currently detected gesture and score */}
         <div className={`
           flex items-center gap-4 px-8 py-4 rounded-2xl border-2 transition-all duration-300 transform
           ${currentGesture !== Gesture.NONE ? 'bg-slate-800/80 scale-105 shadow-xl' : 'bg-slate-900/50 border-transparent'}
@@ -133,7 +163,7 @@ const App: React.FC = () => {
             <span className="text-2xl font-bold tracking-tight">
               {currentGesture === Gesture.NONE ? "A aguardar pose..." : currentGesture}
             </span>
-            {/* Novo: mostrar pontuação do gesto atual e total */}
+            {/* Display current gesture score and total accumulated score */}
             {currentGesture !== Gesture.NONE && (
               <span className="text-sm text-indigo-300">Pontuação: +{Math.round(currentScore)} | Total: {totalScore}</span>
             )}
@@ -142,7 +172,7 @@ const App: React.FC = () => {
 
         <div className="flex flex-col lg:flex-row gap-8 w-full max-w-6xl justify-center items-start">
           
-          {/* Settings Panel */}
+          {/* Settings Panel: MediaPipe confidence threshold controls */}
           {showSettings && (
              <div className="w-full lg:w-64 flex-shrink-0 bg-slate-800/50 p-6 rounded-2xl border border-slate-700 animate-in slide-in-from-top-5 duration-200">
                 <div className="flex items-center gap-2 mb-4 text-indigo-400">
@@ -173,7 +203,7 @@ const App: React.FC = () => {
              </div>
           )}
 
-          {/* Video Canvas Container */}
+          {/* Video Canvas Container: Main area for camera feed and pose detection */}
           <div className="flex-grow flex flex-col items-center w-full">
             <GestureCanvas 
               ref={gestureCanvasRef}
@@ -187,7 +217,7 @@ const App: React.FC = () => {
 
         </div>
 
-        {/* Info Cards / Instructions */}
+        {/* Info Cards / Instructions - Display all available gestures */}
         <div className="max-w-6xl w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <GestureCard 
             title="Elevate Left" 
@@ -246,41 +276,24 @@ const App: React.FC = () => {
             onMouseLeave={() => setHoveredGesture(null)}
           />
           <GestureCard 
-            title="Squat" 
-            desc="Dobrar joelhos < 150°." 
-            active={currentGesture === Gesture.SQUAT} 
-            color="bg-orange-500/20 border-orange-500/50 text-orange-300"
-            onMouseEnter={() => setHoveredGesture(Gesture.SQUAT)}
+            title="March Left" 
+            desc="Eleve o joelho esquerdo > 20°. Simula marcha." 
+            active={currentGesture === Gesture.MARCH_LEFT} 
+            color="bg-green-500/20 border-green-500/50 text-green-300"
+            onMouseEnter={() => setHoveredGesture(Gesture.MARCH_LEFT)}
             onMouseLeave={() => setHoveredGesture(null)}
           />
           <GestureCard 
-  title="March Left" 
-  desc="Eleve o joelho esquerdo > 20°. Simula marcha." 
-  active={currentGesture === Gesture.MARCH_LEFT} 
-  color="bg-green-500/20 border-green-500/50 text-green-300"
-  onMouseEnter={() => setHoveredGesture(Gesture.MARCH_LEFT)}
-  onMouseLeave={() => setHoveredGesture(null)}
-/>
-<GestureCard 
-  title="March Right" 
-  desc="Eleve o joelho direito > 20°. Simula marcha." 
-  active={currentGesture === Gesture.MARCH_RIGHT} 
-  color="bg-green-500/20 border-green-500/50 text-green-300"
-  onMouseEnter={() => setHoveredGesture(Gesture.MARCH_RIGHT)}
-  onMouseLeave={() => setHoveredGesture(null)}
-/>
-<GestureCard 
-  title="Step Forward" 
-  desc="Estenda uma perna à frente. Ângulo no joelho > 160°." 
-  active={currentGesture === Gesture.STEP_FORWARD} 
-  color="bg-blue-500/20 border-blue-500/50 text-blue-300"
-  onMouseEnter={() => setHoveredGesture(Gesture.STEP_FORWARD)}
-  onMouseLeave={() => setHoveredGesture(null)}
-/>
-
+            title="March Right" 
+            desc="Eleve o joelho direito > 20°. Simula marcha." 
+            active={currentGesture === Gesture.MARCH_RIGHT} 
+            color="bg-green-500/20 border-green-500/50 text-green-300"
+            onMouseEnter={() => setHoveredGesture(Gesture.MARCH_RIGHT)}
+            onMouseLeave={() => setHoveredGesture(null)}
+          />
         </div>
 
-        {/* Download Section - Collapsible */}
+        {/* Download Section - Collapsible panel for Python code downloads */}
         <div className="max-w-6xl w-full mt-8 bg-slate-800/40 rounded-2xl border border-slate-700/50 overflow-hidden transition-all duration-300">
           <button 
             onClick={() => setShowDownloads(!showDownloads)}
@@ -297,6 +310,7 @@ const App: React.FC = () => {
             )}
           </button>
           
+          {/* Python code download buttons for each gesture */}
           {showDownloads && (
             <div className="p-6 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in slide-in-from-top-2 duration-200">
               <DownloadButton 
@@ -335,11 +349,6 @@ const App: React.FC = () => {
                 color="hover:bg-cyan-500/20 hover:border-cyan-500/50 hover:text-cyan-300"
               />
               <DownloadButton 
-                label="Squat (.py)" 
-                onClick={() => handleDownloadCode(Gesture.SQUAT)} 
-                color="hover:bg-orange-500/20 hover:border-orange-500/50 hover:text-orange-300"
-              />
-              <DownloadButton 
                 label="March Left (.py)" 
                 onClick={() => handleDownloadCode(Gesture.MARCH_LEFT)} 
                 color="hover:bg-green-500/20 hover:border-green-500/50 hover:text-green-300"
@@ -349,11 +358,6 @@ const App: React.FC = () => {
                 onClick={() => handleDownloadCode(Gesture.MARCH_RIGHT)} 
                 color="hover:bg-green-500/20 hover:border-green-500/50 hover:text-green-300"
               />
-              <DownloadButton 
-                label="Step Forward (.py)" 
-                onClick={() => handleDownloadCode(Gesture.STEP_FORWARD)} 
-                color="hover:bg-blue-500/20 hover:border-blue-500/50 hover:text-blue-300"
-              />
             </div>
           )}
         </div>
@@ -362,15 +366,26 @@ const App: React.FC = () => {
   );
 };
 
+/**
+ * Props interface for the GestureCard component.
+ * Defines the structure of props passed to individual gesture cards.
+ */
 interface GestureCardProps {
-  title: string;
-  desc: string;
-  active: boolean;
-  color: string;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  title: string;                   // Display name of the gesture
+  desc: string;                    // Description of how to perform the gesture
+  active: boolean;                 // Whether this gesture is currently being performed
+  color: string;                   // Tailwind CSS classes for colors
+  onMouseEnter?: () => void;      // Callback when mouse hovers over card
+  onMouseLeave?: () => void;      // Callback when mouse leaves card
 }
 
+/**
+ * GestureCard component displays information about a single gesture.
+ * Shows the gesture name, description, and highlights when active.
+ * Hovering over a card can trigger visual feedback in the canvas.
+ * 
+ * @param props - GestureCardProps containing card configuration
+ */
 const GestureCard = ({ title, desc, active, color, onMouseEnter, onMouseLeave }: GestureCardProps) => (
   <div 
     onMouseEnter={onMouseEnter}
@@ -385,6 +400,14 @@ const GestureCard = ({ title, desc, active, color, onMouseEnter, onMouseLeave }:
   </div>
 );
 
+/**
+ * DownloadButton component for downloading Python detection code.
+ * Provides a clickable button that generates and downloads gesture-specific Python code.
+ * 
+ * @param label - Button text label
+ * @param onClick - Handler function triggered on click
+ * @param color - Tailwind CSS classes for hover color effects
+ */
 const DownloadButton = ({ label, onClick, color }: { label: string, onClick: () => void, color: string }) => (
   <button 
     onClick={onClick}
@@ -398,6 +421,15 @@ const DownloadButton = ({ label, onClick, color }: { label: string, onClick: () 
   </button>
 );
 
+/**
+ * RangeControl component for adjusting MediaPipe confidence thresholds.
+ * Displays a labeled slider with current value and tooltip explanation.
+ * 
+ * @param label - Display label for the control
+ * @param value - Current numeric value (0.0-1.0)
+ * @param onChange - Callback function when value changes
+ * @param tooltip - Explanatory text shown on hover
+ */
 const RangeControl = ({ label, value, onChange, tooltip }: { label: string, value: number, onChange: (v: number) => void, tooltip: string }) => (
   <div className="flex flex-col gap-2 group">
     <div className="flex justify-between items-center">
