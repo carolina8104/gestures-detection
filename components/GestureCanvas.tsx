@@ -2,6 +2,33 @@ import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } f
 import { PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { DetectionResult, Gesture, Landmark } from '../types';
 
+// Detection threshold constants for gesture recognition
+const THRESHOLDS = {
+  ARM_ANGLE_ELEVATED: 150,      // Minimum angle for elevated arm gestures
+  ARM_ANGLE_HORIZONTAL: 160,    // Minimum angle for horizontal arm (T-Stop)
+  ARM_ANGLE_WAVE_MIN: 50,       // Minimum angle for wave gesture
+  ARM_ANGLE_WAVE_MAX: 130,      // Maximum angle for wave gesture
+  Y_ALIGNMENT_TOLERANCE: 0.1,   // Y-axis alignment tolerance for horizontal arms
+  SHOULDER_ROTATION: 0.15,      // Maximum shoulder distance for rotation detection
+  KNEE_RAISE_THRESHOLD: 0.1     // Minimum vertical distance for knee raise detection
+};
+
+// MediaPipe Pose Landmark indices for body keypoints
+const POSE_LANDMARKS = {
+  LEFT_SHOULDER: 11,
+  RIGHT_SHOULDER: 12,
+  LEFT_ELBOW: 13,
+  RIGHT_ELBOW: 14,
+  LEFT_WRIST: 15,
+  RIGHT_WRIST: 16,
+  LEFT_HIP: 23,
+  RIGHT_HIP: 24,
+  LEFT_KNEE: 25,
+  RIGHT_KNEE: 26,
+  LEFT_ANKLE: 27,
+  RIGHT_ANKLE: 28
+};
+
 /**
  * Props interface for the GestureCanvas component.
  * Configures detection sensitivity and provides callback for gesture events.
@@ -249,6 +276,9 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           // Calculate score based on gesture type
           const score = calculateScore(detectedGesture);
           
+          // Use actual detection confidence from MediaPipe results
+          const confidence = results.landmarks[0].reduce((sum, lm) => sum + (lm.visibility || 0), 0) / results.landmarks[0].length;
+          
           onGestureDetected({
             landmarks: results.landmarks.map(lm => 
               lm.map(point => ({
@@ -259,7 +289,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
               }))
             ),
             gesture: detectedGesture,
-            confidence: 0.85,  // Placeholder confidence
+            confidence: confidence,
             score: score
           });
         }
@@ -295,11 +325,20 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
       width: number,
       height: number
     ) => {
-      // Define pose connections (skeleton lines)
+      // Define pose connections (skeleton lines) using landmark indices
       const connections = [
-        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],  // Arms
-        [11, 23], [12, 24], [23, 24],                       // Torso
-        [23, 25], [25, 27], [24, 26], [26, 28]              // Legs
+        [POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.RIGHT_SHOULDER],
+        [POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.LEFT_ELBOW],
+        [POSE_LANDMARKS.LEFT_ELBOW, POSE_LANDMARKS.LEFT_WRIST],
+        [POSE_LANDMARKS.RIGHT_SHOULDER, POSE_LANDMARKS.RIGHT_ELBOW],
+        [POSE_LANDMARKS.RIGHT_ELBOW, POSE_LANDMARKS.RIGHT_WRIST],
+        [POSE_LANDMARKS.LEFT_SHOULDER, POSE_LANDMARKS.LEFT_HIP],
+        [POSE_LANDMARKS.RIGHT_SHOULDER, POSE_LANDMARKS.RIGHT_HIP],
+        [POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.RIGHT_HIP],
+        [POSE_LANDMARKS.LEFT_HIP, POSE_LANDMARKS.LEFT_KNEE],
+        [POSE_LANDMARKS.LEFT_KNEE, POSE_LANDMARKS.LEFT_ANKLE],
+        [POSE_LANDMARKS.RIGHT_HIP, POSE_LANDMARKS.RIGHT_KNEE],
+        [POSE_LANDMARKS.RIGHT_KNEE, POSE_LANDMARKS.RIGHT_ANKLE]
       ];
 
       // Draw connection lines
@@ -333,17 +372,17 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
      * @returns Detected gesture enum value
      */
     const analyzeGesture = (landmarks: any[]): Gesture => {
-      // Extract key landmarks for analysis
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
-      const leftElbow = landmarks[13];
-      const rightElbow = landmarks[14];
-      const leftWrist = landmarks[15];
-      const rightWrist = landmarks[16];
-      const leftHip = landmarks[23];
-      const rightHip = landmarks[24];
-      const leftKnee = landmarks[25];
-      const rightKnee = landmarks[26];
+      // Extract key landmarks for analysis using named constants
+      const leftShoulder = landmarks[POSE_LANDMARKS.LEFT_SHOULDER];
+      const rightShoulder = landmarks[POSE_LANDMARKS.RIGHT_SHOULDER];
+      const leftElbow = landmarks[POSE_LANDMARKS.LEFT_ELBOW];
+      const rightElbow = landmarks[POSE_LANDMARKS.RIGHT_ELBOW];
+      const leftWrist = landmarks[POSE_LANDMARKS.LEFT_WRIST];
+      const rightWrist = landmarks[POSE_LANDMARKS.RIGHT_WRIST];
+      const leftHip = landmarks[POSE_LANDMARKS.LEFT_HIP];
+      const rightHip = landmarks[POSE_LANDMARKS.RIGHT_HIP];
+      const leftKnee = landmarks[POSE_LANDMARKS.LEFT_KNEE];
+      const rightKnee = landmarks[POSE_LANDMARKS.RIGHT_KNEE];
 
       // Check Elevate Left: left arm raised above shoulder
       if (leftWrist && leftShoulder && leftElbow) {
@@ -352,7 +391,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [leftElbow.x, leftElbow.y],
           [leftWrist.x, leftWrist.y]
         );
-        if (armAngle > 150 && leftWrist.y < leftShoulder.y) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_ELEVATED && leftWrist.y < leftShoulder.y) {
           return Gesture.ELEVATE_LEFT;
         }
       }
@@ -364,7 +403,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [rightElbow.x, rightElbow.y],
           [rightWrist.x, rightWrist.y]
         );
-        if (armAngle > 150 && rightWrist.y < rightShoulder.y) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_ELEVATED && rightWrist.y < rightShoulder.y) {
           return Gesture.ELEVATE_RIGHT;
         }
       }
@@ -377,7 +416,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [leftWrist.x, leftWrist.y]
         );
         const yDiff = Math.abs(leftWrist.y - leftShoulder.y);
-        if (armAngle > 160 && yDiff < 0.1) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_HORIZONTAL && yDiff < THRESHOLDS.Y_ALIGNMENT_TOLERANCE) {
           return Gesture.T_STOP_LEFT;
         }
       }
@@ -390,7 +429,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [rightWrist.x, rightWrist.y]
         );
         const yDiff = Math.abs(rightWrist.y - rightShoulder.y);
-        if (armAngle > 160 && yDiff < 0.1) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_HORIZONTAL && yDiff < THRESHOLDS.Y_ALIGNMENT_TOLERANCE) {
           return Gesture.T_STOP_RIGHT;
         }
       }
@@ -402,7 +441,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [leftElbow.x, leftElbow.y],
           [leftWrist.x, leftWrist.y]
         );
-        if (armAngle > 50 && armAngle < 130 && leftWrist.y < leftShoulder.y) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_WAVE_MIN && armAngle < THRESHOLDS.ARM_ANGLE_WAVE_MAX && leftWrist.y < leftShoulder.y) {
           return Gesture.WAVE_LEFT;
         }
       }
@@ -414,7 +453,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
           [rightElbow.x, rightElbow.y],
           [rightWrist.x, rightWrist.y]
         );
-        if (armAngle > 50 && armAngle < 130 && rightWrist.y < rightShoulder.y) {
+        if (armAngle > THRESHOLDS.ARM_ANGLE_WAVE_MIN && armAngle < THRESHOLDS.ARM_ANGLE_WAVE_MAX && rightWrist.y < rightShoulder.y) {
           return Gesture.WAVE_RIGHT;
         }
       }
@@ -422,14 +461,14 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
       // Check Rotation: shoulders closer together (torso rotation)
       if (leftShoulder && rightShoulder) {
         const shoulderDistance = Math.abs(leftShoulder.x - rightShoulder.x);
-        if (shoulderDistance < 0.15) {
+        if (shoulderDistance < THRESHOLDS.SHOULDER_ROTATION) {
           return Gesture.ROTATION;
         }
       }
 
       // Check March Left: left knee raised
       if (leftHip && leftKnee) {
-        const kneeRaised = leftKnee.y < leftHip.y - 0.1;
+        const kneeRaised = leftKnee.y < leftHip.y - THRESHOLDS.KNEE_RAISE_THRESHOLD;
         if (kneeRaised) {
           return Gesture.MARCH_LEFT;
         }
@@ -437,7 +476,7 @@ const GestureCanvas = forwardRef<GestureCanvasRef, GestureCanvasProps>(
 
       // Check March Right: right knee raised
       if (rightHip && rightKnee) {
-        const kneeRaised = rightKnee.y < rightHip.y - 0.1;
+        const kneeRaised = rightKnee.y < rightHip.y - THRESHOLDS.KNEE_RAISE_THRESHOLD;
         if (kneeRaised) {
           return Gesture.MARCH_RIGHT;
         }

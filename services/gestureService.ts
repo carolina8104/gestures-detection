@@ -1,5 +1,18 @@
 import { Gesture } from '../types';
 
+// Detection threshold constants for Python code generation
+// These values should match the thresholds used in GestureCanvas.tsx
+const DETECTION_THRESHOLDS = {
+  ARM_ANGLE_ELEVATED: 150,
+  ARM_ANGLE_HORIZONTAL: 160,
+  ARM_ANGLE_WAVE_MIN: 50,
+  ARM_ANGLE_WAVE_MAX: 130,
+  Y_ALIGNMENT_TOLERANCE: 0.1,
+  SHOULDER_ROTATION: 0.15,
+  KNEE_ANGLE_MARCH: 160,
+  KNEE_RAISE_THRESHOLD: 0.2
+};
+
 /**
  * Generates Python code for detecting a specific gesture using MediaPipe.
  * Each gesture has its own detection algorithm based on landmark positions and angles.
